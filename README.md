@@ -2,10 +2,13 @@
 
 > A streamlined, Makefile-driven installer that automatically sets up a complete local development environment for **IBM watsonx Orchestrate** on macOS and Ubuntu.
 
+[](https://www.google.com/search?q=)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)]()
 [![License Apache-2.0](https://img.shields.io/badge/license-Apache%202.0-blue)]()
 
----
+
+-----
+
 -----
 
 ## 🚀 Features
@@ -18,7 +21,7 @@
   * **Isolated Python Environment**: Creates a local Python virtual environment (`venv`) to keep dependencies clean and project-specific.
   * **Orchestrate ADK Installation**: Prompts for and installs your desired version of the `ibm-watsonx-orchestrate` ADK into the virtual environment.
   * **Environment Configuration**: Seamlessly integrates with a `.env` file for secure management of your API keys and credentials.
-  * **Simple Makefile Workflow**: Provides clear, high-level commands for installation, with a self-documenting `help` target.
+  * **Simple Makefile Workflow**: Provides clear, high-level commands for installation, running, and cleanup, with a self-documenting `help` target.
 
 -----
 
@@ -83,49 +86,73 @@ The script will detect your OS, install any missing prerequisites, and guide you
 
 -----
 
-## 🛠️ Post-Installation
+## 🛠️ Usage Workflow
 
-Once the installation is complete, your environment is ready. Here’s how to use it.
+Once the installation is complete, your environment is ready. The `Makefile` provides a simple workflow for starting, managing, and stopping your environment.
 
-### Activate the Virtual Environment
+### 1\. Activate the Virtual Environment
 
-Before running any `orchestrate` commands, you must activate the isolated Python environment.
+Before running any commands, you **must** activate the isolated Python environment. This only needs to be done once per terminal session.
 
 ```bash
 source venv/bin/activate
 ```
 
-You can confirm it's active by seeing `(venv)` at the beginning of your terminal prompt.
+> You can confirm it's active by seeing `(venv)` at the beginning of your terminal prompt.
 
-### Verify Your Installation
+### 2\. Start the Server
 
-Check that the ADK was installed correctly.
+Start the watsonx Orchestrate server in the background.
 
 ```bash
-orchestrate --version
+make start
 ```
 
-### Start Developing
+### 3\. Add and Import Your Skills
 
-You are now ready to start the watsonx Orchestrate server and build your skills\!
+Place your custom tool (Python or OpenAPI YAML files) and agent (`.yaml`) files into the `/tools` and `/agents` directories, respectively. If these directories do not exist, the import step will be skipped.
+
+Once your files are in place, run:
 
 ```bash
-orchestrate server start
+make run
+```
+
+This command automatically finds and imports all your tools and agents, and will prompt you to start the chat UI.
+
+### 4\. Stop the Server
+
+To stop the server and any related Docker containers without removing them, use:
+
+```bash
+make stop
+```
+
+### 5\. Full Cleanup (Optional)
+
+To stop and completely remove all containers and Docker images from your host, use the purge command. **Warning**: This is a destructive action and will require you to re-download images later.
+
+```bash
+make purge
 ```
 
 -----
 
 ## Available Commands
 
-This project uses a `Makefile` as a simple command runner.
+This project uses a `Makefile` as a simple command runner. Run `make help` to see this list in your terminal.
 
-| Command        | Description                                                          |
-| :------------- | :------------------------------------------------------------------- |
-| `make install` | Runs the main installation workflow to set up the complete environment. |
-| `make help`    | Displays the list of all available commands.                         |
+| Command | Description |
+| :------------- | :--------------------------------------------------------------------------------- |
+| `make install` | ⚙️ Installs the complete environment, including prerequisites and the ADK. |
+| `make start` | 🚀 Starts the watsonx Orchestrate server in the background. |
+| `make run` | 🏃 Imports all tools and agents from the `/tools` and `/agents` directories. |
+| `make stop` | 🛑 Stops the watsonx Orchestrate server and any related containers. |
+| `make purge` | 🔥 Stops and completely removes all containers and Docker images from the host. |
+| `make help` | ℹ️ Shows this list of all available commands. |
 
 -----
 
 ## 📜 License
 
-This project is licensed under the **Apache 2.0 License**. 
+This project is licensed under the **Apache 2.0 License**.

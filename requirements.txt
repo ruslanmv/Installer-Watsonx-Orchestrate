@@ -1,0 +1,2 @@
+ibm-watsonx-orchestrate==1.6.2   # ADK core
+pytest>=8.0                       # sample tests

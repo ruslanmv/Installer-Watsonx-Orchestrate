@@ -1,31 +1,61 @@
 # Use bash as the default shell for all recipes.
 SHELL := /bin/bash
 
-# Define the location of the main installation script.
+# Define the locations of the scripts.
 INSTALL_SCRIPT := scripts/install.sh
+START_SCRIPT   := scripts/start.sh
+RUN_SCRIPT     := scripts/run.sh
+STOP_SCRIPT    := scripts/stop.sh
+PURGE_SCRIPT   := scripts/purge.sh
 
 # ==============================================================================
 # HELP
 # This target provides a self-documenting way to see available commands.
-# Run `make help` to see the list.
 # ==============================================================================
 .PHONY: help
 help:
 	@echo "Available commands:"
-	@echo "  make install   - Installs the environment by running all setup scripts."
-	@echo "  make help      - Shows this help message."
+	@echo ""
+	@echo "  make install   - ⚙️  Installs the environment by running all setup scripts."
+	@echo "  make start     - 🚀 Loads the watsonx Orchestrate server."
+	@echo "  make run       - 🏃 Imports agents/tools and starts the application."
+	@echo "  make stop      - 🛑 Stops the watsonx Orchestrate server and related containers."
+	@echo "  make purge     - 🔥 Stops and removes all containers and Docker images."
+	@echo "  make help      - ℹ️  Shows this help message."
+	@echo ""
 
 # ==============================================================================
 # MAIN TARGETS
 # ==============================================================================
 
-# The .PHONY declaration tells Make that 'install' is a recipe name,
-# not a file to be created. This ensures it always runs when you call `make install`.
-.PHONY: install
+# Declare all targets that are not files as .PHONY.
+.PHONY: install start run stop purge
+
+# Installs the complete environment.
 install:
 	@echo "🚀 Starting environment installation..."
 	@$(SHELL) $(INSTALL_SCRIPT)
-	@echo "✅ Makefile finished."
+	@echo "✅ Makefile: Installation finished."
 
-# A default target to run when you just type `make`. It will show the help message.
+# Starts the watsonx Orchestrate server.
+start:
+	@echo "🚀 Starting the watsonx Orchestrate server..."
+	@$(SHELL) $(START_SCRIPT)
+
+# Runs the application logic (imports agents/tools).
+run:
+	@echo "🏃 Running the application setup (importing agents and tools)..."
+	@$(SHELL) $(RUN_SCRIPT)
+
+# Stops the watsonx Orchestrate server and related containers.
+stop:
+	@echo "🛑 Stopping the server and any related containers..."
+	@$(SHEE) $(STOP_SCRIPT)
+
+# Purges the environment by removing all containers and Docker images.
+purge:
+	@echo "🔥 Purging the environment (stopping and removing all containers and images)..."
+	@$(SHELL) $(PURGE_SCRIPT)
+
+# A default target to run when you just type `make`.
 .DEFAULT_GOAL := help
