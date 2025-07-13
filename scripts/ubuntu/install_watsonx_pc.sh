@@ -38,30 +38,38 @@ EOF
   echo -e "${NC}"
 }
 
-print_logo
-
-# --- FIX: Extracted ADK installation logic into a reusable function ---
 install_adk() {
-  echo
-  echo "Available ADK versions:"
-  for i in "${!ADK_VERSIONS[@]}"; do
-    printf "   %2d) %s\n" $((i+1)) "${ADK_VERSIONS[$i]}"
-  done
-
-  local IDX
-  read -rp "Select ADK version number: " IDX
-
-  if [[ "$IDX" =~ ^[0-9]+$ && "$IDX" -ge 1 && "$IDX" -le "${#ADK_VERSIONS[@]}" ]]; then
-    ADK_VERSION="${ADK_VERSIONS[$((IDX-1))]}"
-    echo "📦 Installing ibm-watsonx-orchestrate==$ADK_VERSION …"
-    pip install --upgrade "ibm-watsonx-orchestrate==$ADK_VERSION"
+  # --- FIX: Handle non-interactive sessions (like GitHub Actions) ---
+  if [ -t 0 ]; then # Check if running in an interactive terminal
+    # Interactive mode: Show menu and prompt user
+    echo
+    echo "Available ADK versions:"
+    for i in "${!ADK_VERSIONS[@]}"; do
+      printf "   %2d) %s\n" $((i+1)) "${ADK_VERSIONS[$i]}"
+    done
+    local IDX
+    read -rp "Select ADK version number: " IDX
+    if [[ "$IDX" =~ ^[0-9]+$ && "$IDX" -ge 1 && "$IDX" -le "${#ADK_VERSIONS[@]}" ]]; then
+      ADK_VERSION="${ADK_VERSIONS[$((IDX-1))]}"
+    else
+      echo "❌ Invalid version. Skipping installation."
+      ADK_VERSION=""
+      return
+    fi
   else
-    echo "❌ Invalid version. Skipping installation."
-    ADK_VERSION="" # Ensure version is empty on failure
+    # Non-interactive mode: Automatically select the latest version
+    ADK_VERSION="${ADK_VERSIONS[-1]}" # Get the last element from the array
+    echo "🤖 Non-interactive mode detected. Installing latest ADK version: ${ADK_VERSION}"
   fi
+  
+  echo "📦 Installing ibm-watsonx-orchestrate==$ADK_VERSION (this may take a few moments)..."
+  pip install --upgrade "ibm-watsonx-orchestrate==$ADK_VERSION"
 }
 
 # --- Main Script ---
+
+print_logo
+
 # Pre-flight: Verify local tooling
 command -v docker >/dev/null \
   || { echo "❌ Docker not installed. Please install Docker first."; exit 1; }
@@ -71,7 +79,7 @@ if ! docker compose version 2>/dev/null | grep -q 'v2\.'; then
 fi
 
 # Config
-ADK_VERSIONS=( "1.5.0" "1.5.1" "1.6.0" "1.6.1" "1.6.2" )
+ADK_VERSIONS=( "1.5.0" "1.5.1" "1.6.0" "1.6.1" "1.6.2") 
 ENV_FILE="${INSTALL_ROOT}/.env"
 VENV_DIR="${INSTALL_ROOT}/venv"
 ADK_VERSION=""
@@ -119,18 +127,24 @@ if [[ -d "$VENV_DIR" ]]; then
       ADK_VERSION=""
   fi
 
-  # --- FIX: Prompt to install if ADK is missing ---
   if [[ -z "$ADK_VERSION" ]]; then
       echo "⚠️  Could not detect installed ADK version in the existing venv."
-      read -rp "Do you want to install it now? (y/N) " choice
-      case "$choice" in
-        y|Y )
-          install_adk # Call the installation function
-          ;;
-        * )
-          echo "Skipping installation. The environment may not be complete."
-          ;;
-      esac
+      # --- FIX: Handle non-interactive sessions ---
+      if [ -t 0 ]; then # Prompt only if in an interactive terminal
+        read -rp "Do you want to install it now? (y/N) " choice
+        case "$choice" in
+          y|Y )
+            install_adk
+            ;;
+          * )
+            echo "Skipping installation. The environment may not be complete."
+            ;;
+        esac
+      else
+        # Automatically install in non-interactive mode
+        echo "🤖 Non-interactive mode detected. Proceeding with installation."
+        install_adk
+      fi
   fi
 else
   echo "📦 Creating venv in ${VENV_DIR}…"
@@ -138,7 +152,7 @@ else
   # shellcheck disable=SC1091
   source "${VENV_DIR}/bin/activate"
   echo "🔧 Python $(python --version)"
-  install_adk # Call the installation function
+  install_adk
 fi
 
 # Done
@@ -148,5 +162,5 @@ if [[ -n "$ADK_VERSION" ]]; then
 else
   echo "✅  Environment setup is complete (ADK installation was skipped or failed)."
 fi
-echo "    You can now activate the venv with 'source \"${VENV_DIR}/bin/activate\"' and run the server."
-echo "    Happy building — ruslanmv.com 🚀"
+echo "   You can now activate the venv with 'source \"${VENV_DIR}/bin/activate\"' and run the server."
+echo "   Happy building — ruslanmv.com 🚀"

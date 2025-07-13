@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# Docker Engine + Docker Compose v2 Installer for Ubuntu 22.04
-# Version 1.1 — 2025-07-11
+# Docker Engine + Docker Compose v2 Installer for Ubuntu & Debian
+# Version 1.2 — 2025-07-13
 # Author: ruslanmv.com
 set -euo pipefail
 
 ### ── COLORS ────────────────────────────────────────────────────────────────
-RED='\033[0;31m'       # errors
-GREEN='\033[0;32m'     # success
-YELLOW='\033[1;33m'    # warnings/info
-BLUE='\033[0;34m'      # headers
-NC='\033[0m'           # no color
+RED='\033[0;31m'      # errors
+GREEN='\033[0;32m'    # success
+YELLOW='\033[1;33m'   # warnings/info
+BLUE='\033[0;34m'     # headers
+NC='\033[0m'          # no color
 
 print_color() {
     # $1 = color, $2 = message
@@ -26,12 +26,22 @@ print_header() {
 }
 
 ### ── PRECHECKS ───────────────────────────────────────────────────────────
-# Ensure running on Ubuntu 22.04
-if ! grep -q "Ubuntu 22.04" /etc/os-release; then
-    print_color "$RED" "Error: This script only supports Ubuntu 22.04."
+# Source /etc/os-release to get the OS ID
+if [ -f /etc/os-release ]; then
+    # shellcheck source=/dev/null
+    source /etc/os-release
+else
+    print_color "$RED" "Error: Cannot find /etc/os-release to determine the OS."
+    exit 1
+fi
+
+# Check if the OS is Ubuntu or Debian
+if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
+    print_color "$RED" "Error: This script only supports Ubuntu and Debian-based systems."
     lsb_release -a || true
     exit 1
 fi
+print_color "$GREEN" "✓ Detected compatible OS: $PRETTY_NAME"
 
 # Ensure running as root or via sudo
 if [[ "$EUID" -ne 0 ]]; then
@@ -44,6 +54,14 @@ if command -v docker &> /dev/null; then
     existing_version=$(docker --version)
     print_header "Docker Already Installed"
     print_color "$YELLOW" "Detected: $existing_version"
+
+    # ── FIX: Skip interactive prompt in CI environments ────────────────
+    # If we're running under CI (e.g. GitHub Actions), just exit success.
+    if [[ -n "${CI:-}" ]]; then
+        print_color "$GREEN" "ⓘ CI environment detected, skipping Docker installation."
+        exit 0
+    fi
+
     read -rp "Do you want to reinstall Docker completely? [y/N]: " confirm
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         print_color "$GREEN" "No changes made. Exiting."
@@ -51,18 +69,8 @@ if command -v docker &> /dev/null; then
     fi
 
     print_header "Removing existing Docker installation"
-    apt-get remove -y \
-        docker-ce \
-        docker-ce-cli \
-        containerd.io \
-        docker-buildx-plugin \
-        docker-compose-plugin || true
-    apt-get purge -y \
-        docker-ce \
-        docker-ce-cli \
-        containerd.io \
-        docker-buildx-plugin \
-        docker-compose-plugin || true
+    apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || true
+    apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || true
     rm -rf /var/lib/docker /var/lib/containerd
     print_color "$GREEN" "✓ Old Docker removed"
 fi
@@ -71,50 +79,42 @@ fi
 install_prereqs() {
     print_header "Installing prerequisites"
     apt-get update -qq
-    apt-get install -y \
-        ca-certificates \
-        curl \
-        gnupg \
-        lsb-release
+    apt-get install -y ca-certificates curl gnupg lsb-release
     print_color "$GREEN" "✓ Prerequisites installed"
 }
 
 add_docker_repo() {
     print_header "Adding Docker’s official repository"
     install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+    
+    curl -fsSL "https://download.docker.com/linux/${ID}/gpg" \
         | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     chmod a+r /etc/apt/keyrings/docker.gpg
 
     echo \
       "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-      https://download.docker.com/linux/ubuntu \
+      https://download.docker.com/linux/${ID} \
       $(lsb_release -cs) stable" \
       > /etc/apt/sources.list.d/docker.list
 
     apt-get update -qq
-    print_color "$GREEN" "✓ Docker repository added"
+    print_color "$GREEN" "✓ Docker repository for ${ID} added"
 }
 
 install_docker() {
     print_header "Installing Docker Engine & components"
-    apt-get install -y \
-        docker-ce \
-        docker-ce-cli \
-        containerd.io \
-        docker-buildx-plugin \
-        docker-compose-plugin
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     print_color "$GREEN" "✓ Docker Engine and plugins installed"
 }
 
 post_install_config() {
     print_header "Post-installation configuration"
     local usr="${SUDO_USER:-root}"
-    if id "$usr" &>/dev/null; then
+    if id "$usr" &>/dev/null && [[ "$usr" != "root" ]]; then
         usermod -aG docker "$usr"
         print_color "$GREEN" "✓ Added '$usr' to the docker group"
     else
-        print_color "$YELLOW" "⚠ Could not detect non-root user; skipping group add"
+        print_color "$YELLOW" "ⓘ Skipping adding user to docker group (user is root or not found)."
     fi
 
     systemctl enable docker
