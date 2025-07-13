@@ -1,0 +1,34 @@
+# ─── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual env
+.env
+venv/
+.venv/
+
+* copy*
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+
+# macOS / Linux / Windows cruft
+.DS_Store
+Thumbs.db
+
+# Docker artifacts
+*.log
+orchestrate-dev-*.tar
+/backup
+/attemps
+
+backup/
