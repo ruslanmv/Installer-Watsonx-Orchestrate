@@ -118,7 +118,8 @@ Once your files are in place, run:
 make run
 ```
 
-This command automatically finds and imports all your tools and agents, and will prompt you to start the chat UI.
+This command automatically finds and imports all your tools and agents, and will prompt you to start the chat UI, and finally wait and then you can enter to your local WatsonX orchestrate.
+[http://localhost:3000/chat-lite](http://localhost:3000/chat-lite)
 
 ### 4\. Stop the Server
 
