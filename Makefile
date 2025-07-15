@@ -1,6 +1,5 @@
 # Use bash as the default shell for all recipes.
 SHELL := /bin/bash
-
 # Define the locations of the scripts.
 INSTALL_SCRIPT := scripts/install.sh
 START_SCRIPT   := scripts/start.sh
