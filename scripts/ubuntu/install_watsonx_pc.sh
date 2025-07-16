@@ -41,6 +41,7 @@ EOF
 print_logo
 
 # --- FIX: Extracted ADK installation logic into a reusable function ---
+
 install_adk() {
   echo
   echo "Available ADK versions:"
@@ -48,18 +49,29 @@ install_adk() {
     printf "   %2d) %s\n" $((i+1)) "${ADK_VERSIONS[$i]}"
   done
 
-  local IDX
-  read -rp "Select ADK version number: " IDX
+  local input
+  read -rp "Select ADK version number (1-${#ADK_VERSIONS[@]}) or type version (e.g. ${ADK_VERSIONS[-1]}): " input
 
-  if [[ "$IDX" =~ ^[0-9]+$ && "$IDX" -ge 1 && "$IDX" -le "${#ADK_VERSIONS[@]}" ]]; then
-    ADK_VERSION="${ADK_VERSIONS[$((IDX-1))]}"
-    echo "📦 Installing ibm-watsonx-orchestrate==$ADK_VERSION …"
-    pip install --upgrade "ibm-watsonx-orchestrate==$ADK_VERSION"
+  # Direct match of a version string?
+  if printf '%s\n' "${ADK_VERSIONS[@]}" | grep -qx -- "$input"; then
+    ADK_VERSION="$input"
+
+  # Numeric index into the array?
+  elif [[ "$input" =~ ^[0-9]+$ ]] \
+        && (( input >= 1 && input <= ${#ADK_VERSIONS[@]} )); then
+    ADK_VERSION="${ADK_VERSIONS[$((input-1))]}"
+
   else
-    echo "❌ Invalid version. Skipping installation."
-    ADK_VERSION="" # Ensure version is empty on failure
+    echo "❌ Invalid selection. No installation performed."
+    ADK_VERSION=""  # clear out on error
+    return
   fi
+
+  echo "📦 Installing ibm-watsonx-orchestrate==$ADK_VERSION …"
+  pip install --upgrade "ibm-watsonx-orchestrate==$ADK_VERSION"
 }
+
+
 
 # --- Main Script ---
 # Pre-flight: Verify local tooling

@@ -222,25 +222,6 @@ load_env() {
 }
 
 # Function to check Python installation
-check_python_old() {
-    print_step "Checking Python installation..."
-    
-    local python_cmd
-    if ! python_cmd=$(find_python); then
-        print_error "No compatible Python version found (requires 3.11, 3.12, or 3.13)"
-        echo
-        print_color $YELLOW "Please install Python 3.11, 3.12, or 3.13 first:"
-        print_color $YELLOW "• Using Homebrew: brew install python@3.12"
-        print_color $YELLOW "• Or run the Python installation script first"
-        exit 1
-    fi
-    
-    local python_version=$($python_cmd --version)
-    print_success "Found compatible Python: $python_version ($python_cmd)"
-    echo "$python_cmd"
-}
-
-# Function to check Python installation
 check_python() {
     print_step "Checking Python installation..."
     
@@ -297,17 +278,6 @@ handle_existing_venv() {
     fi
     return 1
 }
-
-# Function to create virtual environment
-create_venv_old() {
-    local python_cmd=$1
-    
-    print_step "Creating Python virtual environment in $VENV_DIR..."
-    
-    $python_cmd -m venv "$VENV_DIR"
-    print_success "Virtual environment created successfully"
-}
-
 
 # Function to create virtual environment
 create_venv() {
@@ -378,7 +348,7 @@ check_existing_adk() {
 }
 
 # Function to select ADK version
-select_adk_version() {
+select_adk_version_old() {
     print_header "Select watsonx Orchestrate ADK Version"
     
     print_color $BLUE "Available ADK versions:"
@@ -406,6 +376,41 @@ select_adk_version() {
         fi
     done
 }
+
+select_adk_version() {
+    print_header "Select watsonx Orchestrate ADK Version"
+
+    print_color $BLUE "Available ADK versions:"
+    echo
+    for i in "${!ADK_VERSIONS[@]}"; do
+        printf "   %2d) %s\n" $((i+1)) "${ADK_VERSIONS[$i]}"
+    done
+    echo
+
+    while true; do
+        read -p "Select ADK version number (1-${#ADK_VERSIONS[@]}) or type version (e.g. ${ADK_VERSIONS[-1]}): " input
+
+        # Direct version match
+        if printf '%s\n' "${ADK_VERSIONS[@]}" | grep -qx -- "$input"; then
+            ADK_VERSION="$input"
+            print_success "Selected: ADK version $ADK_VERSION"
+            break
+
+        # Numeric index selection
+        elif [[ "$input" =~ ^[0-9]+$ ]] \
+             && (( input >= 1 && input <= ${#ADK_VERSIONS[@]} )); then
+            ADK_VERSION="${ADK_VERSIONS[$((input-1))]}"
+            print_success "Selected: ADK version $ADK_VERSION"
+            break
+
+        else
+            print_error "Invalid selection. Enter a number between 1 and ${#ADK_VERSIONS[@]}, or a valid version string."
+        fi
+    done
+}
+
+
+
 
 # Function to install ADK
 install_adk() {
