@@ -377,6 +377,7 @@ select_adk_version_old() {
     done
 }
 
+
 select_adk_version() {
     print_header "Select watsonx Orchestrate ADK Version"
 
@@ -388,7 +389,12 @@ select_adk_version() {
     echo
 
     while true; do
-        read -p "Select ADK version number (1-${#ADK_VERSIONS[@]}) or type version (e.g. ${ADK_VERSIONS[-1]}): " input
+        # --- FIX IS HERE ---
+        # Get the last element of the array for the prompt example
+        # This syntax is compatible with the older bash version on macOS
+        local example_version="${ADK_VERSIONS[${#ADK_VERSIONS[@]}-1]}"
+        
+        read -p "Select ADK version number (1-${#ADK_VERSIONS[@]}) or type version (e.g. ${example_version}): " input
 
         # Direct version match
         if printf '%s\n' "${ADK_VERSIONS[@]}" | grep -qx -- "$input"; then
@@ -408,7 +414,6 @@ select_adk_version() {
         fi
     done
 }
-
 
 
 

@@ -2,7 +2,7 @@
 
 # Docker Compose v2 Installation Script for macOS
 # Compatible with watsonx Orchestrate ADK
-# Version 2.0 - Fixed to handle pre-existing Colima instances
+# Version 2.1 - Improved handling of existing instances and user interruption
 
 set -e  # Exit on any error
 
@@ -111,6 +111,7 @@ install_colima() {
         print_color $YELLOW "Colima is already installed!"
         read -p "Do you want to reinstall it? (y/N): " reinstall
         if [[ ! $reinstall =~ ^[Yy]$ ]]; then
+            # If not reinstalling, just run configuration on existing install
             configure_colima
             return 0
         fi
@@ -129,23 +130,25 @@ install_colima() {
     configure_colima
 }
 
-# Function to configure Colima
+# --- FIXED FUNCTION ---
+# This function now allows the user to keep their existing Colima instance without aborting the script.
 configure_colima() {
     print_header "Configuring Colima"
     
-    # Check for a pre-existing Colima instance and delete it to avoid conflicts
+    # Check for a pre-existing Colima instance
     if colima status >/dev/null 2>&1; then
         print_color $YELLOW "An existing Colima instance was found."
-        print_color $YELLOW "To prevent configuration errors, the existing instance must be deleted."
-        read -p "Do you want to PERMANENTLY DELETE the existing Colima instance and create a new one? (y/N): " delete_confirm
+        print_color $YELLOW "To apply recommended settings, the script needs to replace this instance."
+        read -p "Do you want to replace the existing Colima instance with recommended settings? (y/N): " delete_confirm
         if [[ $delete_confirm =~ ^[Yy]$ ]]; then
             print_color $BLUE "Stopping and deleting existing Colima instance..."
             colima stop || true # Stop first, ignore error if already stopped
             colima delete
             print_color $GREEN "✓ Existing instance deleted."
         else
-            print_color $RED "Configuration aborted. Cannot apply new settings without deleting the existing instance."
-            return 1
+            # This is the fix: instead of returning an error, we print a message and return successfully.
+            print_color $GREEN "✓ Skipping configuration. Your existing Colima instance will be used."
+            return 0
         fi
     fi
     
@@ -153,11 +156,12 @@ configure_colima() {
     arch=$(detect_arch)
     print_color $BLUE "Detected architecture: $arch"
     
+    print_color $BLUE "Starting Colima with recommended settings for watsonx Orchestrate..."
     if [[ $arch == "Apple Silicon (M1/M2/M3)" ]]; then
-        print_color $BLUE "Starting Colima with Apple Silicon optimized settings..."
+        # Apple Silicon optimized settings
         colima start --cpu 4 --memory 8 --disk 60 --vm-type=vz --vz-rosetta
     else
-        print_color $BLUE "Starting Colima with Intel optimized settings..."
+        # Intel optimized settings
         colima start --cpu 4 --memory 8 --disk 60
     fi
     
@@ -196,7 +200,7 @@ verify_installation() {
     elif command_exists docker-compose; then
         compose_version=$(docker-compose --version)
         print_color $YELLOW "⚠ Found legacy docker-compose: $compose_version"
-        print_color $YELLOW "   The script requires Docker Compose v2 (docker compose command)."
+        print_color $YELLOW "   The script requires Docker Compose v2 (the 'docker compose' command)."
     else
         print_color $RED "✗ Docker Compose not found"
         return 1
@@ -227,7 +231,7 @@ show_post_install() {
     print_color $YELLOW "Troubleshooting tips:"
     print_color $YELLOW "- If you encounter issues, try: orchestrate server reset"
     print_color $YELLOW "- Check logs with: orchestrate server logs"
-    print_color $YELLOW "- Ensure you have 8+ GB RAM and 8+ CPU cores available"
+    print_color $YELLOW "- Ensure Colima or Rancher Desktop is running"
     echo
     print_color $GREEN "For more information, visit the watsonx Orchestrate ADK documentation."
 }
@@ -257,6 +261,13 @@ show_menu() {
     print_color $PURPLE "3) Verify existing installation"
     print_color $RED "4) Exit"
     echo
+}
+
+# --- NEW FUNCTION ---
+# Cleanup function to handle Ctrl+C interruption
+cleanup() {
+    print_color $YELLOW "\nScript interrupted by user. Exiting."
+    exit 1
 }
 
 # Main script execution
@@ -299,6 +310,10 @@ main() {
         esac
     done
 }
+
+# --- ADDED TRAP ---
+# Trap SIGINT (Ctrl+C) and call the cleanup function
+trap cleanup SIGINT
 
 # Run the main function
 main "$@"
