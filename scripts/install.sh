@@ -72,6 +72,22 @@ case "${OS_TYPE}" in
     run_script "${SCRIPT_DIR}/mac/install_docker.sh" "${INSTALL_ROOT}"
     run_script "${SCRIPT_DIR}/mac/install_watsonx_mac.sh" "${INSTALL_ROOT}"
     ;;
+  MINGW*|MSYS*|CYGWIN*|Windows_NT)
+    echo "🪟 Detected Windows"
+
+    # Check if PowerShell is available
+    if ! command -v powershell &>/dev/null && ! command -v pwsh &>/dev/null; then
+      echo "❌ PowerShell not found. Please install PowerShell 7+ first."
+      exit 1
+    fi
+
+    POWERSHELL_CMD=$(command -v pwsh || command -v powershell)
+
+    echo "→ Using PowerShell: $POWERSHELL_CMD"
+    "$POWERSHELL_CMD" -ExecutionPolicy Bypass -File "${SCRIPT_DIR}/windows/install_python_win.ps1" "${INSTALL_ROOT}"
+    "$POWERSHELL_CMD" -ExecutionPolicy Bypass -File "${SCRIPT_DIR}/windows/install_docker.ps1" "${INSTALL_ROOT}"
+    "$POWERSHELL_CMD" -ExecutionPolicy Bypass -File "${SCRIPT_DIR}/windows/install_watsonx_win.ps1" "${INSTALL_ROOT}"
+    ;;
   *)
     echo "❓ Unknown OS: ${OS_TYPE}"
     echo "This script supports only Ubuntu (Linux) and macOS."
