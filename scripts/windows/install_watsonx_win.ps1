@@ -1,5 +1,5 @@
 # Config
-$envFile = "$PSScriptRoot\..\..\scripts\.env"
+$envFile = "$PSScriptRoot\..\..\.env"
 $venvDir = "$PSScriptRoot\..\..\venv"
 $adkVersions = @("1.5.0", "1.5.1", "1.6.0", "1.6.1", "1.6.2", "1.7.0")
 $pythonCmd = "python"
@@ -113,7 +113,6 @@ while ($true) {
 
     switch ($option) {
         "1" {
-            $envFile = "$PSScriptRoot\..\..\scripts\.env"
             Load-DotEnv -envFile $envFile
             Create-Venv
             Activate-Venv
