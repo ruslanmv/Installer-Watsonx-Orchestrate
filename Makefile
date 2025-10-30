@@ -6,16 +6,23 @@ ifeq ($(OS),Windows_NT)
   SHELL := $(ComSpec)
   .SHELLFLAGS := /C
 
-  # Prefer Git Bash; fall back to plain 'bash'
-  GIT_BASH_64 := C:\Program Files\Git\bin\bash.exe
-  GIT_BASH_32 := C:\Program Files (x86)\Git\bin\bash.exe
-  ifneq ("$(wildcard $(GIT_BASH_64))","")
-    BASH := $(GIT_BASH_64)
-  else ifneq ("$(wildcard $(GIT_BASH_32))","")
-    BASH := $(GIT_BASH_32)
-  else
-    BASH := bash
+  # --- Robust Git Bash detection (avoid WSL's legacy System32\bash.exe) ---
+  BASH_CANDIDATE := $(shell if exist "%ProgramFiles%\Git\bin\bash.exe" echo %ProgramFiles%\Git\bin\bash.exe)
+  ifeq ($(strip $(BASH_CANDIDATE)),)
+    BASH_CANDIDATE := $(shell if exist "%ProgramFiles(x86)%\Git\bin\bash.exe" echo %ProgramFiles(x86)%\Git\bin\bash.exe)
   endif
+  ifneq ($(strip $(BASH_CANDIDATE)),)
+    BASH := $(BASH_CANDIDATE)
+  else
+    # Fall back to first 'bash' found; prefer Git if present in PATH
+    BASH_WHERE := $(shell where bash 2>NUL)
+    ifneq (,$(findstring \Git\bin\bash.exe,$(BASH_WHERE)))
+      BASH := $(firstword $(filter %\Git\bin\bash.exe,$(BASH_WHERE)))
+    else
+      BASH := bash
+    endif
+  endif
+
   # Check the chosen bash
   CHECK_BASH := "$(BASH)" --version >NUL 2>NUL || (echo Git Bash not found. Install Git for Windows and ensure bash is in PATH. & exit 1)
 
@@ -56,7 +63,6 @@ else
     PLATFORM_FLAVOR :=
     PLATFORM_HINT := Run make target in your shell. Scripts are executed with bash.
   else ifneq (,$(filter MSYS% MINGW%,$(UNAME_S)))
-    # In case someone runs GNU Make from MSYS/MinGW but OS var wasn't set to Windows_NT
     PLATFORM := Windows
     PLATFORM_FLAVOR := MSYS2/MinGW
     PLATFORM_HINT := Use Git Bash (MSYS2). Scripts are executed with bash.

@@ -1,158 +1,172 @@
-# ⚙️ Watsonx Orchestrate DevKit Installer
+# ⚙️ Watsonx Orchestrate DevKit — Cross-Platform Installer
 
-> A streamlined, Makefile-driven installer that automatically sets up a complete local development environment for **IBM watsonx Orchestrate** on macOS and Ubuntu.
+> One command to set up a full **IBM watsonx Orchestrate** development environment on **Windows**, **WSL (Ubuntu)**, **macOS**, and **Ubuntu**.
 
-[](https://www.google.com/search?q=)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)]()
-[![License Apache-2.0](https://img.shields.io/badge/license-Apache%202.0-blue)]()
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](#)
+[![OS](https://img.shields.io/badge/OS-Windows%20%7C%20WSL%20\(Ubuntu\)%20%7C%20macOS%20%7C%20Ubuntu-brightgreen)](#)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue)](#license)
 
------
+---
 
------
+## ✨ Highlights
 
-## 🚀 Features
+* 🧠 **Smart OS detection**: Windows, WSL (Ubuntu), macOS, Ubuntu
+* ⚙️ **One command**: `make install` sets up Python 3.11, Docker, a local `venv`, and the **Orchestrate ADK**
+* 🐳 **Windows flow**: choose **Docker Desktop** or **Docker inside WSL** (engine + compose)
+* 🔒 **Project-local** Python virtual environment
+* 📄 **`.env`** credentials support (not committed)
+* 🧭 Clean **Makefile** workflow: `install`, `start`, `run`, `stop`, `purge`, `export`, `help`
 
-  * **Automated OS Detection**: Intelligently identifies your operating system (macOS or Ubuntu) to run the correct setup scripts.
-  * **One-Command Setup**: A single `make install` command orchestrates the entire installation process.
-  * **Prerequisite Installation**: Automatically installs essential tools if they are missing:
-      * **Python 3.11**: Ensures the correct Python version is available for the ADK.
-      * **Docker & Docker Compose**: Installs and configures the containerization tools required by watsonx Orchestrate.
-  * **Isolated Python Environment**: Creates a local Python virtual environment (`venv`) to keep dependencies clean and project-specific.
-  * **Orchestrate ADK Installation**: Prompts for and installs your desired version of the `ibm-watsonx-orchestrate` ADK into the virtual environment.
-  * **Environment Configuration**: Seamlessly integrates with a `.env` file for secure management of your API keys and credentials.
-  * **Simple Makefile Workflow**: Provides clear, high-level commands for installation, running, and cleanup, with a self-documenting `help` target.
+---
 
------
+## 🖥️ Supported Platforms
 
-## 🏁 Getting Started
+| Platform          | How installers run                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| **Windows 10/11** | Make via **Git Bash** (recommended) or PowerShell/CMD; platform scripts via **PowerShell** |
+| **WSL (Ubuntu)**  | **Linux installers by default**; optionally call Windows installers from WSL               |
+| **macOS**         | Bash installers                                                                            |
+| **Ubuntu**        | Bash installers (apt-based)                                                                |
 
-Follow these steps to get your local watsonx Orchestrate development environment up and running in minutes.
+---
 
-### 1\. Prerequisites
+## 🔐 Configure Credentials
 
-Ensure you have the following tools installed on your system:
+Create a **`.env`** at the repo root with **one** of the templates:
 
-  * **Git**: To clone the repository.
-  * **Make**: To run the installation commands. This is pre-installed on most macOS and Linux systems.
-
-### 2\. Clone the Repository
-
-Open your terminal and clone this repository to your local machine.
-
-```bash
-git clone https://github.com/ruslanmv/Installer-Watsonx-Orchestrate.git
-cd Installer-Watsonx-Orchestrate
-```
-
-### 3\. Configure Your Environment
-
-The installer requires a `.env` file in the project root to configure your IBM credentials.
-
-**A.** Create a file named `.env` in the `Installer-Watsonx-Orchestrate` directory.
-
-**B.** Copy one of the templates below into your `.env` file, depending on your account type.
-
-**Template for a watsonx Orchestrate Account:**
+**watsonx Orchestrate (SaaS)**
 
 ```env
-# For watsonx Orchestrate (SaaS) accounts
 WO_DEVELOPER_EDITION_SOURCE=orchestrate
 WO_INSTANCE=https://api.us-east.watson-orchestrate.ibm.com/instances/your-instance-id
 WO_API_KEY=your-orchestrate-api-key
 ```
 
-**Template for a watsonx.ai Account:**
+**watsonx.ai (BYOA) on IBM Cloud**
 
 ```env
-# For watsonx.ai (BYOA) accounts on IBM Cloud
 WO_DEVELOPER_EDITION_SOURCE=myibm
 WO_ENTITLEMENT_KEY=your-entitlement-key
 WATSONX_APIKEY=your-watsonx-api-key
 WATSONX_SPACE_ID=your-watsonx.ai-space-id
 ```
 
-**C.** Replace the placeholder values (`your-...`) with your actual credentials.
+> 🔒 **Never commit** your `.env`.
 
-### 4\. Run the Installer
+---
 
-With your `.env` file configured, run the main installation command from the project root.
+## 🚀 Quick Start
+
+1. **Clone**
+
+```bash
+git clone https://github.com/ruslanmv/Installer-Watsonx-Orchestrate.git
+cd Installer-Watsonx-Orchestrate
+```
+
+2. **Install**
 
 ```bash
 make install
 ```
 
-The script will detect your OS, install any missing prerequisites, and guide you through selecting an ADK version. This process may take several minutes.
+> **WSL behavior:** inside WSL the installer uses **Linux** scripts by default.
+> To force **Windows-side installers from WSL** (e.g., prefer Docker Desktop on Windows), set `PREFER_WINDOWS_ON_WSL=1` using the syntax for **your shell**:
 
------
+* **Git Bash / WSL / macOS / Ubuntu**
 
-## 🛠️ Usage Workflow
+  ```bash
+  PREFER_WINDOWS_ON_WSL=1 make install
+  ```
+* **PowerShell**
 
-Once the installation is complete, your environment is ready. The `Makefile` provides a simple workflow for starting, managing, and stopping your environment.
+  ```powershell
+  $env:PREFER_WINDOWS_ON_WSL = '1'
+  make install
+  ```
+* **CMD**
 
-### 1\. Activate the Virtual Environment
+  ```cmd
+  set PREFER_WINDOWS_ON_WSL=1
+  make install
+  ```
 
-Before running any commands, you **must** activate the isolated Python environment. This only needs to be done once per terminal session.
+3. **Activate venv**
 
-```bash
-source venv/bin/activate
-```
+* macOS / Ubuntu / WSL:
 
-> You can confirm it's active by seeing `(venv)` at the beginning of your terminal prompt.
+  ```bash
+  source venv/bin/activate
+  ```
+* Windows (PowerShell):
 
-### 2\. Start the Server
+  ```powershell
+  .\venv\Scripts\Activate.ps1
+  ```
 
-Start the watsonx Orchestrate server in the background.
+4. **Run**
 
 ```bash
 make start
-```
-
-### 3\. Add and Import Your Skills
-
-Place your custom tool (Python or OpenAPI YAML files) and agent (`.yaml`) files into the `/tools` and `/agents` directories, respectively. If these directories do not exist, the import step will be skipped.
-
-Once your files are in place, run:
-
-```bash
 make run
+# UI: http://localhost:3000/chat-lite
 ```
 
-This command automatically finds and imports all your tools and agents, and will prompt you to start the chat UI, and finally wait and then you can enter to your local WatsonX orchestrate.
-[http://localhost:3000/chat-lite](http://localhost:3000/chat-lite)
-
-### 4\. Stop the Server
-
-To stop the server and any related Docker containers without removing them, use:
+5. **Stop / Clean**
 
 ```bash
-make stop
+make stop     # stop services
+make purge    # remove containers/images (destructive)
 ```
 
-### 5\. Full Cleanup (Optional)
+---
 
-To stop and completely remove all containers and Docker images from your host, use the purge command. **Warning**: This is a destructive action and will require you to re-download images later.
+## 🧰 Make Commands
 
-```bash
-make purge
-```
+| Command        | What it does                                              |
+| -------------- | --------------------------------------------------------- |
+| `make help`    | ℹ️ Show environment info & available targets              |
+| `make install` | ⚙️ Full bootstrap: Python 3.11, Docker, venv, ADK         |
+| `make start`   | 🚀 Start watsonx Orchestrate services                     |
+| `make run`     | 🏃 Import tools/agents then start the app                 |
+| `make stop`    | 🛑 Stop services/containers                               |
+| `make purge`   | 🔥 Remove all related containers/images                   |
+| `make export`  | ☁️ Push tools/KBs/agents to your cloud env (reads `.env`) |
 
------
+---
 
-## Available Commands
+## 🧪 Minimal Prerequisites
 
-This project uses a `Makefile` as a simple command runner. Run `make help` to see this list in your terminal.
+* **All**: Git, Make, internet access
+* **Windows**: Git for Windows (for **Git Bash**), PowerShell (7 recommended)
+* **WSL (optional on Windows)**: `wsl --install -d Ubuntu`
 
-| Command | Description |
-| :------------- | :--------------------------------------------------------------------------------- |
-| `make install` | ⚙️ Installs the complete environment, including prerequisites and the ADK. |
-| `make start` | 🚀 Starts the watsonx Orchestrate server in the background. |
-| `make run` | 🏃 Imports all tools and agents from the `/tools` and `/agents` directories. |
-| `make stop` | 🛑 Stops the watsonx Orchestrate server and any related containers. |
-| `make purge` | 🔥 Stops and completely removes all containers and Docker images from the host. |
-| `make help` | ℹ️ Shows this list of all available commands. |
+> The Makefile auto-prefers **Git Bash** on Windows and executes platform scripts with the appropriate shell.
 
------
+---
+
+## 🛟 Troubleshooting
+
+* **Inline env var fails on Windows CMD**
+  Use the correct syntax for your shell (see **Quick Start → step 2**):
+
+  * PowerShell: `$env:PREFER_WINDOWS_ON_WSL='1'; make install`
+  * CMD: `set PREFER_WINDOWS_ON_WSL=1` then `make install`
+  * Git Bash/WSL/macOS/Ubuntu: `PREFER_WINDOWS_ON_WSL=1 make install`
+
+* **Docker installed but “daemon not reachable”**
+
+  * Start Docker Desktop; or in WSL: `sudo service docker start` (or enable systemd and reopen terminal).
+
+* **PowerShell execution policy blocks scripts (Windows)**
+  Run PowerShell as admin:
+
+  ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+  ```
+
+---
 
 ## 📜 License
 
-This project is licensed under the **Apache 2.0 License**.
+Licensed under the **Apache 2.0** License.
