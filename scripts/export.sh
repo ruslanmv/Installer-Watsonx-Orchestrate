@@ -1,25 +1,9 @@
 #!/usr/bin/env bash
 # export.sh — Promote local watsonx Orchestrate assets (tools/ KBs/ agents/) to a cloud env
-# Cross‑platform target: macOS/Linux (Bash). Works on Windows via Git Bash/WSL.
-#
-# Features
-# - Activates project venv (if present) and verifies ADK CLI
-# - Ensures/creates target cloud environment and activates it with API key
-# - Imports in the correct order: tools → knowledge-bases → agents (orchestrator last)
-# - Optionally consumes an ADK export bundle ZIP (unzips, then imports parts)
-# - Optional deploy of imported agents (from YAML names) after import
-# - Dry‑run mode to preview actions
-#
-# Usage examples
-#   bash export.sh --cloud-url https://api.<region>.watson-orchestrate.ibm.com/instances/<id> \
-#     --api-key $API_KEY --type ibm_iam --env prod --deploy-all
-#
-#   bash export.sh --env prod --deploy orchestrator_agent calculator_agent
-#
-#   bash export.sh --zip agent_bundle.zip --env prod --api-key $API_KEY --deploy-all
+# Cross-platform: macOS/Linux/WSL/Git Bash. No per-key parsing of .env.
 
 set -euo pipefail
-shopt -s nullglob
+shopt -s nullglob extglob
 
 # --------------------------- Colors & helpers ---------------------------
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -30,10 +14,10 @@ warn(){ echo -e "${YELLOW}⚠️  $*${NC}"; }
 
 # ----------------------------- Args -----------------------------
 ENV_NAME="prod"
-CLOUD_URL=""
-ENV_TYPE="ibm_iam"    # or mcsp
-API_KEY=""
-ADD_ENV=1              # auto-create env if missing
+CLOUD_URL=""              # if empty, will be taken from .env -> WO_INSTANCE
+ENV_TYPE="ibm_iam"        # or mcsp (can be inferred from URL)
+API_KEY=""                # if empty, will be taken from .env -> WO_API_KEY or WATSONX_APIKEY
+ADD_ENV=1
 DRY_RUN=0
 ZIP_BUNDLE=""
 DEPLOY_ALL=0
@@ -41,18 +25,18 @@ DEPLOY_NAMES=()
 SKIP_TOOLS=0
 SKIP_KBS=0
 SKIP_AGENTS=0
-AGENTS_GLOB="*.y?(a)ml"   # bash extglob handles .yaml/.yml
+AGENTS_GLOB="*.y?(a)ml"
 TOOLS_GLOB_ALL=("*.py" "*.yaml" "*.yml")
 KBS_GLOB_ALL=("*.yaml" "*.yml")
 
 usage(){ cat <<'EOF'
 Usage: bash export.sh [options]
   --env <name>            Target environment name (default: prod)
-  --cloud-url <url>       Service instance URL (required if env doesn't exist)
-  --type <ibm_iam|mcsp>   Environment type (default: ibm_iam)
-  --api-key <key>         API key used to activate the cloud env
+  --cloud-url <url>       Service instance URL (uses .env WO_INSTANCE if omitted)
+  --type <ibm_iam|mcsp>   Environment type (default: ibm_iam; inferred from URL if omitted)
+  --api-key <key>         API key (uses .env WO_API_KEY or WATSONX_APIKEY if omitted)
   --no-add-env            Do not auto-create env if missing
-  --zip <bundle.zip>      Use an ADK export bundle (unzips, then imports).
+  --zip <bundle.zip>      Use an ADK export bundle (unzips, then imports)
   --deploy-all            Deploy all agents imported from YAMLs
   --deploy <A ...>        Deploy specific agent name(s)
   --skip-tools            Skip tools import
@@ -60,14 +44,6 @@ Usage: bash export.sh [options]
   --skip-agents           Skip agents import
   --dry-run               Print actions without executing
   -h, --help              Show this help
-
-Examples:
-  bash export.sh --cloud-url https://api.<region>.watson-orchestrate.ibm.com/instances/<id> \
-    --api-key $API_KEY --type ibm_iam --env prod --deploy-all
-
-  bash export.sh --env prod --deploy orchestrator_agent calculator_agent
-
-  bash export.sh --zip agent_bundle.zip --env prod --api-key $API_KEY --deploy-all
 EOF
 }
 
@@ -92,35 +68,83 @@ done
 
 # ------------------------- Resolve paths -------------------------
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}" && pwd)"
-VENV_DIR="${PROJECT_ROOT}/venv"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"   # project root is parent of scripts/
 TOOLS_DIR="${PROJECT_ROOT}/tools"
 KBS_DIR="${PROJECT_ROOT}/knowledge-bases"
 AGENTS_DIR="${PROJECT_ROOT}/agents"
 DOTENV_FILE="${PROJECT_ROOT}/.env"
 
-# --- Zero-config: read WO_INSTANCE/WO_API_KEY from .env if not provided ---
-read_dotenv_key(){
-  local key="$1"; local file="$2"
-  [[ -f "$file" ]] || return 1
-  local line; line=$(grep -E "^${key}=" "$file" | tail -n1 || true)
-  [[ -z "$line" ]] && return 1
-  local val="${line#*=}"
-  # trim simple quotes/spaces
-  val="${val%\"}"; val="${val#\"}"
-  val="${val% }"; val="${val# }"
-  printf '%s' "$val"
+# ---------------------- Virtual environment ---------------------
+detect_venv_dir() {
+  local d
+  for d in "${PROJECT_ROOT}/venv" "${PROJECT_ROOT}/.venv"; do
+    [[ -d "$d" && -f "$d/pyvenv.cfg" ]] && { echo "$d"; return 0; }
+  done
+  local found
+  found="$(find "$PROJECT_ROOT" -maxdepth 2 -type f -name pyvenv.cfg -print -quit 2>/dev/null || true)"
+  [[ -n "$found" ]] && { dirname "$found"; return 0; }
+  return 1
 }
 
-if [[ -z "$CLOUD_URL" ]]; then
-  v=$(read_dotenv_key WO_INSTANCE "$DOTENV_FILE" || true)
-  if [[ -n "${v:-}" ]]; then CLOUD_URL="$v"; info "From .env → CLOUD_URL: $CLOUD_URL"; fi
-fi
-if [[ -z "$API_KEY" ]]; then
-  v=$(read_dotenv_key WO_API_KEY "$DOTENV_FILE" || true)
-  if [[ -n "${v:-}" ]]; then API_KEY="$v"; info "From .env → API_KEY: ********"; fi
+activate_venv() {
+  local vdir="$1"
+  if [[ -f "${vdir}/bin/activate" ]]; then
+    # shellcheck disable=SC1091
+    source "${vdir}/bin/activate"
+    info "Activated venv (POSIX): ${vdir}"
+  elif [[ -f "${vdir}/Scripts/activate" ]]; then
+    # shellcheck disable=SC1091
+    source "${vdir}/Scripts/activate"
+    info "Activated venv (Windows): ${vdir}"
+  else
+    warn "Found venv at '${vdir}', but no activate script was found."
+  fi
+}
+
+VENV_DIR=""
+if VENV_DIR="$(detect_venv_dir)"; then
+  activate_venv "$VENV_DIR"
+else
+  warn "Virtual environment not found under '${PROJECT_ROOT}/venv' or '${PROJECT_ROOT}/.venv'. Proceeding with system Python/CLI."
 fi
 
+# Prefer the CLI, but fall back to python -m orchestrate when needed.
+ORCH=""
+if command -v orchestrate >/dev/null 2>&1; then
+  ORCH="orchestrate"
+elif python -c "import orchestrate" >/dev/null 2>&1; then
+  ORCH="python -m orchestrate"
+else
+  fail "'orchestrate' CLI not found. Activate your venv or ensure ADK is installed."
+fi
+
+# ------------------- Load .env (no key-by-key parsing) -------------------
+# We safely source .env by first stripping CRLF and BOM into a temp file.
+source_env_file() {
+  local file="$1"
+  [[ -f "$file" ]] || return 1
+  local tmp; tmp="$(mktemp)"
+  # strip UTF-8 BOM and trailing \r; keep commented lines intact (sourcing will ignore them)
+  awk 'NR==1{sub(/^\xef\xbb\xbf/,"")} { sub(/\r$/,""); print }' "$file" > "$tmp"
+  set -a
+  # shellcheck disable=SC1090
+  source "$tmp"
+  set +a
+  rm -f "$tmp"
+  return 0
+}
+
+if source_env_file "$DOTENV_FILE"; then
+  info "Loaded environment from .env"
+else
+  warn "No .env found at ${DOTENV_FILE}; relying on CLI flags and existing envs."
+fi
+
+# Map common .env vars → script vars if flags not provided
+: "${CLOUD_URL:=${WO_INSTANCE:-}}"
+: "${API_KEY:=${WO_API_KEY:-${WATSONX_APIKEY:-}}}"
+
+# -------------------- Infer env type from URL if needed -------------------
 infer_env_type(){
   local url="$1"
   if [[ "$url" == *".cloud.ibm.com"* ]]; then echo "ibm_iam"; return; fi
@@ -128,23 +152,19 @@ infer_env_type(){
   if [[ "$url" == *"watson-orchestrate.ibm.com"* ]]; then echo "mcsp"; return; fi
   echo "ibm_iam"
 }
-
-if [[ -z "$ENV_TYPE" && -n "$CLOUD_URL" ]]; then
+if [[ -z "${ENV_TYPE:-}" && -n "${CLOUD_URL:-}" ]]; then
   ENV_TYPE="$(infer_env_type "$CLOUD_URL")"
-  info "Inferred env type from URL: ${ENV_TYPE}"
 fi
+
+# Masked preview (don’t leak full key)
+mask_key(){ local s="$1"; [[ -z "$s" ]] && echo "" || echo "${s:0:4}********${s: -4}"; }
+
 info "Project root: ${PROJECT_ROOT}"
-
-# ---------------------- Virtual environment ---------------------
-if [[ -d "$VENV_DIR" ]]; then
-  echo "📦 Activating virtual environment: ${VENV_DIR}"
-  # shellcheck disable=SC1091
-  source "${VENV_DIR}/bin/activate"
-else
-  warn "Virtual environment not found at '${VENV_DIR}'. Proceeding with system Python/CLI."
-fi
-
-command -v orchestrate >/dev/null 2>&1 || fail "'orchestrate' CLI not found on PATH. Activate venv or install ADK."
+[[ -n "${VENV_DIR:-}" ]] && info "Using venv: ${VENV_DIR}"
+[[ -n "${CLOUD_URL:-}" ]] && info "Cloud URL: ${CLOUD_URL}"
+[[ -n "${API_KEY:-}" ]] && info "API key: $(mask_key "${API_KEY}")"
+info "Env type: ${ENV_TYPE}"
+info "Target environment name: ${ENV_NAME}"
 
 # ---------------------- Dry-run executor ------------------------
 run(){
@@ -157,7 +177,7 @@ run(){
 
 # ---------------------- Env helpers -----------------------------
 env_exists(){
-  orchestrate env list 2>/dev/null | awk '{print $1}' | grep -Fxq "$ENV_NAME" && return 0 || return 1
+  $ORCH env list 2>/dev/null | awk '{print $1}' | grep -Fxq "$ENV_NAME" && return 0 || return 1
 }
 
 ensure_env(){
@@ -165,18 +185,18 @@ ensure_env(){
     info "Using existing env: ${ENV_NAME}"
   else
     if (( ADD_ENV )); then
-      [[ -n "$CLOUD_URL" ]] || fail "Env '${ENV_NAME}' not found. Provide --cloud-url or create the env manually."
+      [[ -n "${CLOUD_URL:-}" ]] || fail "Env '${ENV_NAME}' not found. Provide --cloud-url or set WO_INSTANCE in .env."
       info "Creating env '${ENV_NAME}' (type=${ENV_TYPE}) → ${CLOUD_URL}"
-      run "orchestrate env add -n '${ENV_NAME}' -u '${CLOUD_URL}' --type ${ENV_TYPE} --activate"
+      run "$ORCH env add -n '${ENV_NAME}' -u '${CLOUD_URL}' --type ${ENV_TYPE} --activate"
     else
       fail "Env '${ENV_NAME}' not found and --no-add-env specified."
     fi
   fi
   # Always activate; pass API key if provided (refresh token)
-  if [[ -n "$API_KEY" ]]; then
-    run "orchestrate env activate '${ENV_NAME}' --api-key '${API_KEY}'"
+  if [[ -n "${API_KEY:-}" ]]; then
+    run "$ORCH env activate '${ENV_NAME}' --api-key '${API_KEY}'"
   else
-    run "orchestrate env activate '${ENV_NAME}'"
+    run "$ORCH env activate '${ENV_NAME}'"
   fi
 }
 
@@ -192,7 +212,6 @@ use_zip_if_provided(){
     TMP_DIR="$(mktemp -d)"
     info "Unzipping bundle → ${TMP_DIR}"
     run "unzip -q '${ZIP_BUNDLE}' -d '${TMP_DIR}'"
-    # Repoint directories to the unzipped layout
     [[ -d "${TMP_DIR}/tools" ]] && TOOLS_DIR="${TMP_DIR}/tools"
     [[ -d "${TMP_DIR}/knowledge-bases" ]] && KBS_DIR="${TMP_DIR}/knowledge-bases"
     [[ -d "${TMP_DIR}/agents" ]] && AGENTS_DIR="${TMP_DIR}/agents"
@@ -207,14 +226,16 @@ import_tools(){
   fi
   info "Importing tools from ${TOOLS_DIR}"
   local count=0
-  (cd "$TOOLS_DIR" && for pattern in "${TOOLS_GLOB_ALL[@]}"; do for f in $pattern; do [[ -f "$f" ]] || continue
-      case "$f" in
-        *.py)   info "Tool (python): $f"; run "orchestrate tools import -k python -f '${TOOLS_DIR}/$f'" ;;
-        *.yml|*.yaml) info "Tool (openapi): $f"; run "orchestrate tools import -k openapi -f '${TOOLS_DIR}/$f'" ;;
-        *) warn "Unknown tool file type: $f (skipped)" ;;
-      esac
-      count=$((count+1))
-    done; done)
+  (cd "$TOOLS_DIR" && for pattern in "${TOOLS_GLOB_ALL[@]}"; do
+      for f in $pattern; do [[ -f "$f" ]] || continue
+        case "$f" in
+          *.py)   info "Tool (python): $f"; run "$ORCH tools import -k python -f '${TOOLS_DIR}/$f'" ;;
+          *.yml|*.yaml) info "Tool (openapi): $f"; run "$ORCH tools import -k openapi -f '${TOOLS_DIR}/$f'" ;;
+          *) warn "Unknown tool file type: $f (skipped)" ;;
+        esac
+        count=$((count+1))
+      done
+    done)
   (( count > 0 )) && ok "Imported $count tool file(s)" || warn "No matching tool files found"
 }
 
@@ -225,16 +246,16 @@ import_kbs(){
   fi
   info "Importing knowledge bases from ${KBS_DIR}"
   local count=0
-  (cd "$KBS_DIR" && for pattern in "${KBS_GLOB_ALL[@]}"; do for kb in $pattern; do [[ -f "$kb" ]] || continue
-      info "KB: $kb"; run "orchestrate knowledge-bases import -f '${KBS_DIR}/$kb'"; count=$((count+1))
-    done; done)
+  (cd "$KBS_DIR" && for pattern in "${KBS_GLOB_ALL[@]}"; do
+      for kb in $pattern; do [[ -f "$kb" ]] || continue
+        info "KB: $kb"; run "$ORCH knowledge-bases import -f '${KBS_DIR}/$kb'"; count=$((count+1))
+      done
+    done)
   (( count > 0 )) && ok "Imported $count knowledge base file(s)" || warn "No matching KB files found"
 }
 
-# Extract agent name from YAML (first 'name:' key at top level)
 agent_name_from_yaml(){
   local file="$1"
-  # Grep the first 'name:' line that isn't under 'tools:' etc. Assumes simple YAML.
   local line
   line=$(grep -E '^[[:space:]]*name:[[:space:]]*' "$file" | head -n1 || true)
   [[ -z "$line" ]] && echo "" && return 1
@@ -251,7 +272,6 @@ import_agents(){
   fi
   info "Importing agents from ${AGENTS_DIR}"
 
-  # Import everything except orchestrator_* first
   local files=( )
   local orchestrator_file=""
   while IFS= read -r -d '' f; do
@@ -263,7 +283,7 @@ import_agents(){
 
   local count=0
   for f in "${files[@]}"; do
-    info "Agent: $(basename "$f")"; run "orchestrate agents import -f '$f'"
+    info "Agent: $(basename "$f")"; run "$ORCH agents import -f '$f'"
     IMPORTED_AGENT_FILES+=("$f")
     local nm; nm=$(agent_name_from_yaml "$f" || true)
     [[ -n "$nm" ]] && IMPORTED_AGENT_NAMES+=("$nm")
@@ -271,7 +291,7 @@ import_agents(){
   done
 
   if [[ -n "$orchestrator_file" ]]; then
-    info "Agent (orchestrator last): $(basename "$orchestrator_file")"; run "orchestrate agents import -f '$orchestrator_file'"
+    info "Agent (orchestrator last): $(basename "$orchestrator_file")"; run "$ORCH agents import -f '$orchestrator_file'"
     IMPORTED_AGENT_FILES+=("$orchestrator_file")
     local nm; nm=$(agent_name_from_yaml "$orchestrator_file" || true)
     [[ -n "$nm" ]] && IMPORTED_AGENT_NAMES+=("$nm")
@@ -300,14 +320,13 @@ deploy_agents(){
   info "Deploying agents: ${names[*]}"
   local okc=0
   for n in "${names[@]}"; do
-    run "orchestrate agents deploy -n '$n'" && okc=$((okc+1)) || warn "Deploy failed: $n"
+    if run "$ORCH agents deploy -n '$n'"; then okc=$((okc+1)); else warn "Deploy failed: $n"; fi
   done
   ok "Deployment attempted for ${#names[@]} agent(s); success: ${okc}"
 }
 
 # ---------------------- Main -------------------------------
 main(){
-  info "Target environment: ${ENV_NAME}"
   ensure_env
   use_zip_if_provided
   import_tools
@@ -315,7 +334,7 @@ main(){
   import_agents
   deploy_agents
   echo
-  info "Done. You can verify with: 'orchestrate agents list -v'"
+  info "Done. You can verify with: '$ORCH agents list -v'"
 }
 
 main "$@"
