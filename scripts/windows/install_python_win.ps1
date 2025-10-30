@@ -1,52 +1,78 @@
-# install_python_win.ps1 — Installa Python 3.11 su Windows
+# install_python_win.ps1 - Install Python 3.11 on Windows (ASCII-only output)
 
-Write-Host "`n🔧 Controllo presenza di Python 3.11..."
+# Ensure TLS 1.2 for downloads on older .NET
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-# Controlla se python3.11 è già disponibile
+Write-Host ""
+Write-Host "[INFO] Checking for Python 3.11..."
+
+# Check if python3.11 is available
 $pythonInstalled = Get-Command python3.11 -ErrorAction SilentlyContinue
 
 if ($pythonInstalled) {
-    Write-Host "✅ Python 3.11 è già installato:"
+    Write-Host "[OK] Python 3.11 already installed:"
     python3.11 --version
     exit 0
 }
 
-Write-Host "🚀 Python 3.11 non trovato. Avvio installazione..."
+Write-Host "[INFO] Python 3.11 not found. Starting installation..."
 
-# Imposta URL e percorso di installazione
-$installerUrl = "https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe"
-$installerPath = "$env:TEMP\python311-installer.exe"
+# Installer URL and temp path
+$installerUrl  = "https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe"
+$installerPath = Join-Path $env:TEMP "python311-installer.exe"
 
-# Scarica l’installer
-Write-Host "⬇️  Downloading Python 3.11 from python.org..."
-Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
-
-# Installa Python in modo silenzioso, con pip e PATH
-Start-Process -FilePath $installerPath -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1 Include_pip=1 Include_launcher=1" -Wait
-
-# Elimina installer
-Remove-Item $installerPath
-
-# Verifica installazione
-$pythonInstalled = Get-Command python3.11 -ErrorAction SilentlyContinue
-if (-not $pythonInstalled) {
-    Write-Host "❌ Errore: Python 3.11 non si è installato correttamente."
+# Download installer
+Write-Host "[INFO] Downloading Python 3.11 from python.org ..."
+try {
+    Invoke-WebRequest -UseBasicParsing -Uri $installerUrl -OutFile $installerPath
+} catch {
+    Write-Host "[ERROR] Failed to download Python installer: $($_.Exception.Message)"
     exit 1
 }
 
-# Upgrade pip e pacchetti base
-Write-Host "📦 Aggiornamento pip, setuptools e wheel..."
-python3.11 -m pip install --upgrade pip setuptools wheel
+# Silent install: for all users, add to PATH, include pip and launcher
+$arguments = '/quiet InstallAllUsers=1 PrependPath=1 Include_pip=1 Include_launcher=1'
+try {
+    Write-Host "[INFO] Running installer (silent). This may take a minute..."
+    $p = Start-Process -FilePath $installerPath -ArgumentList $arguments -PassThru -Wait
+    if ($p.ExitCode -ne 0) {
+        Write-Host "[ERROR] Installer returned exit code $($p.ExitCode)."
+        exit 1
+    }
+} catch {
+    Write-Host "[ERROR] Failed to run installer: $($_.Exception.Message)"
+    exit 1
+} finally {
+    # Clean up installer
+    try { Remove-Item $installerPath -ErrorAction SilentlyContinue } catch {}
+}
 
-Write-Host "`n✅ Python 3.11 installato con successo!"
+# Verify installation
+$pythonInstalled = Get-Command python3.11 -ErrorAction SilentlyContinue
+if (-not $pythonInstalled) {
+    Write-Host "[ERROR] Python 3.11 did not install correctly."
+    exit 1
+}
+
+# Upgrade pip and common build tools
+Write-Host "[INFO] Upgrading pip, setuptools, and wheel..."
+try {
+    python3.11 -m pip install --upgrade pip setuptools wheel
+} catch {
+    Write-Host "[WARN] Failed to upgrade pip tooling: $($_.Exception.Message)"
+}
+
+Write-Host ""
+Write-Host "[DONE] Python 3.11 installed successfully!"
 python3.11 --version
 
-Write-Host "`n🔧 Consigli:"
-Write-Host "• Per creare un ambiente virtuale:"
+Write-Host ""
+Write-Host "[TIPS]"
+Write-Host "  Create a virtual environment:"
 Write-Host "    python3.11 -m venv venv"
-Write-Host "• Per attivarlo:"
+Write-Host "  Activate it:"
 Write-Host "    .\venv\Scripts\Activate.ps1"
-Write-Host "• Per installare watsonx Orchestrate ADK:"
+Write-Host "  Install watsonx Orchestrate ADK:"
 Write-Host "    pip install ibm-watsonx-orchestrate"
-
-Write-Host "`n🎉 Python è pronto all’uso!"
+Write-Host ""
+Write-Host "[READY] Python is ready to use."

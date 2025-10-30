@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# ┌────────────────────────────────────────────────────────────────────────────┐
-# │                                                                            │
-# │ ██╗    ██╗ █████╗ ████████╗███████╗ ██████╗ ███╗   ██╗██╗  ██╗             │
-# │ ██║    ██║██╔══██╗╚══██╔══╝██╔════╝██╔═══██╗████╗  ██║╚██╗██╔╝             │
-# │ ██║ █╗ ██║███████║   ██║   ███████╗██║   ██║██╔██╗ ██║ ╚███╔╝              │
-# │ ██║███╗██║██╔══██║   ██║   ╚════██║██║   ██║██║╚██╗██║ ██╔██╗              │
-# │ ╚███╔███╔╝██║  ██║   ██║   ███████║╚██████╔╝██║ ╚████║██╔╝ ██╗             │
-# │  ╚══╝╚══╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝             │
-# │                                                                            │
-# │            watsonx Orchestrate  DEV EDITION  by ruslanmv.com               │
-# └────────────────────────────────────────────────────────────────────────────┘
-#
-#
 # Installs a chosen STABLE version of IBM watsonx Orchestrate ADK in an
 # isolated Python virtual-environment.
 
@@ -38,10 +25,24 @@ EOF
   echo -e "${NC}"
 }
 
+# Normalize and source an env file even if it has CRLF line endings
+source_env_crlf_safe() {
+  local env_path="$1"
+  [[ -f "$env_path" ]] || { echo "❌ .env not found at ${env_path}"; exit 1; }
+  local tmp
+  tmp="$(mktemp)"
+  # Strip trailing \r from each line; also tolerate a potential UTF-8 BOM
+  awk 'NR==1{sub(/^\xef\xbb\xbf/,"")} { sub(/\r$/,""); print }' "$env_path" > "$tmp"
+  set -a
+  # shellcheck disable=SC1090
+  source "$tmp"
+  set +a
+  rm -f "$tmp"
+}
+
 print_logo
 
-# --- FIX: Extracted ADK installation logic into a reusable function ---
-
+# --- ADK selection helper ---
 install_adk() {
   echo
   echo "Available ADK versions:"
@@ -49,8 +50,9 @@ install_adk() {
     printf "   %2d) %s\n" $((i+1)) "${ADK_VERSIONS[$i]}"
   done
 
+  local last="${ADK_VERSIONS[$((${#ADK_VERSIONS[@]} - 1))]}"
   local input
-  read -rp "Select ADK version number (1-${#ADK_VERSIONS[@]}) or type version (e.g. ${ADK_VERSIONS[-1]}): " input
+  read -rp "Select ADK version number (1-${#ADK_VERSIONS[@]}) or type version (e.g. ${last}): " input
 
   # Direct match of a version string?
   if printf '%s\n' "${ADK_VERSIONS[@]}" | grep -qx -- "$input"; then
@@ -63,7 +65,7 @@ install_adk() {
 
   else
     echo "❌ Invalid selection. No installation performed."
-    ADK_VERSION=""  # clear out on error
+    ADK_VERSION=""
     return
   fi
 
@@ -71,14 +73,12 @@ install_adk() {
   pip install --upgrade "ibm-watsonx-orchestrate==$ADK_VERSION"
 }
 
-
-
 # --- Main Script ---
 # Pre-flight: Verify local tooling
 command -v docker >/dev/null \
   || { echo "❌ Docker not installed. Please install Docker first."; exit 1; }
 
-if ! docker compose version 2>/dev/null | grep -q 'v2\.'; then
+if ! docker compose version 2>/dev/null | grep -qi 'v2\.'; then
   echo "❌ Docker Compose v2 missing. Please upgrade to Compose v2."; exit 1
 fi
 
@@ -89,12 +89,8 @@ VENV_DIR="${INSTALL_ROOT}/venv"
 ADK_VERSION=""
 ACCOUNT_TYPE=""
 
-# Load .env
-[[ -f "$ENV_FILE" ]] || { echo "❌ .env not found at ${ENV_FILE}"; exit 1; }
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+# Load .env (CRLF-safe)
+source_env_crlf_safe "$ENV_FILE"
 
 # Detect account type
 if [[ "${WO_DEVELOPER_EDITION_SOURCE:-}" == "orchestrate" ]]; then
@@ -131,17 +127,12 @@ if [[ -d "$VENV_DIR" ]]; then
       ADK_VERSION=""
   fi
 
-  # --- FIX: Prompt to install if ADK is missing ---
   if [[ -z "$ADK_VERSION" ]]; then
       echo "⚠️  Could not detect installed ADK version in the existing venv."
       read -rp "Do you want to install it now? (y/N) " choice
       case "$choice" in
-        y|Y )
-          install_adk # Call the installation function
-          ;;
-        * )
-          echo "Skipping installation. The environment may not be complete."
-          ;;
+        y|Y ) install_adk ;;
+        * )   echo "Skipping installation. The environment may not be complete." ;;
       esac
   fi
 else
@@ -150,7 +141,7 @@ else
   # shellcheck disable=SC1091
   source "${VENV_DIR}/bin/activate"
   echo "🔧 Python $(python --version)"
-  install_adk # Call the installation function
+  install_adk
 fi
 
 # Done

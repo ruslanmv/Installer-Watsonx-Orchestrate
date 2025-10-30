@@ -1,49 +1,98 @@
-# install_docker.ps1 — for Windows 10/11
-# Checks and installs Docker Desktop if missing
-# Ensures Docker Compose v2 is available
+# scripts/windows/install_docker.ps1
+# Install/verify Docker Desktop for Windows and Docker Compose v2 (ASCII-only output)
 
-Write-Host "🔧 Verifica presenza di Docker Desktop..."
+# Use TLS 1.2 for downloads on older .NET
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-# Check if Docker is already installed
-$dockerExists = Get-Command docker -ErrorAction SilentlyContinue
-$composeWorks = docker compose version -ErrorAction SilentlyContinue
+Write-Host "[INFO] Checking for Docker Desktop and Compose v2..."
 
-if ($dockerExists -and $composeWorks) {
-    Write-Host "✅ Docker e Docker Compose v2 sono già installati e funzionanti."
+function Test-DockerReady {
+    $docker = Get-Command docker -ErrorAction SilentlyContinue
+    if (-not $docker) { return $false }
+    try {
+        $null = docker version --format '{{.Server.Version}}' 2>$null
+    } catch { return $false }
+    try {
+        $null = docker compose version 2>$null
+    } catch { return $false }
+    return $true
+}
+
+if (Test-DockerReady) {
+    Write-Host "[OK] Docker and Docker Compose v2 are already installed."
     docker --version
     docker compose version
     exit 0
 }
 
-Write-Host "`n❗ Docker Desktop non rilevato o incompleto."
-Write-Host "➡️  Sarà scaricato e installato Docker Desktop."
+Write-Host "[INFO] Docker Desktop not detected or incomplete. Installing Docker Desktop..."
 
 # Download Docker Desktop installer
-$installerUrl = "https://desktop.docker.com/win/stable/Docker%20Desktop%20Installer.exe"
-$installerPath = "$env:TEMP\DockerInstaller.exe"
+$installerUrl  = "https://desktop.docker.com/win/stable/Docker%20Desktop%20Installer.exe"
+$installerPath = Join-Path $env:TEMP "DockerInstaller.exe"
 
-Write-Host "⬇️  Download da: $installerUrl"
-Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
+Write-Host "[INFO] Downloading: $installerUrl"
+try {
+    Invoke-WebRequest -UseBasicParsing -Uri $installerUrl -OutFile $installerPath
+} catch {
+    Write-Host "[ERROR] Failed to download Docker Desktop: $($_.Exception.Message)"
+    exit 1
+}
 
-# Install Docker Desktop silently
-Write-Host "⚙️  Avvio installazione silenziosa..."
-Start-Process -FilePath $installerPath -ArgumentList "install", "--quiet" -Wait
+# Silent install
+Write-Host "[INFO] Running silent installer..."
+$arguments = @("install", "--quiet")
+try {
+    $p = Start-Process -FilePath $installerPath -ArgumentList $arguments -PassThru -Wait -NoNewWindow
+    if ($p.ExitCode -ne 0) {
+        Write-Host "[ERROR] Installer returned exit code $($p.ExitCode)."
+        exit 1
+    }
+} catch {
+    Write-Host "[ERROR] Failed to run Docker installer: $($_.Exception.Message)"
+    exit 1
+} finally {
+    try { Remove-Item $installerPath -Force -ErrorAction SilentlyContinue } catch {}
+}
 
-# Cleanup installer
-Remove-Item $installerPath
+# Ensure local group 'docker-users' exists and add current user
+$groupName   = "docker-users"
+$currentUser = "$($env:USERDOMAIN)\$($env:USERNAME)"
 
-# Add user to docker-users group (may require reboot)
-$CurrentUser = "$env:USERDOMAIN\$env:USERNAME"
-Write-Host "👥 Aggiunta di $CurrentUser al gruppo 'docker-users'..."
-net localgroup docker-users $CurrentUser /add
+Write-Host "[INFO] Ensuring local group '$groupName' exists..."
+try {
+    $group = Get-LocalGroup -Name $groupName -ErrorAction Stop
+} catch {
+    Write-Host "[INFO] Creating group '$groupName'..."
+    try { net localgroup $groupName /add | Out-Null } catch { Write-Host "[WARN] Could not create group using 'net': $($_.Exception.Message)" }
+}
 
-Write-Host "`n🔄 Riavvio dei servizi Docker (se necessario)..."
+Write-Host "[INFO] Adding user '$currentUser' to '$groupName'..."
+try {
+    # Prefer PowerShell cmdlet when available
+    Add-LocalGroupMember -Group $groupName -Member $currentUser -ErrorAction Stop
+} catch {
+    # Fallback to 'net' if Add-LocalGroupMember not available or fails
+    try { net localgroup $groupName $currentUser /add | Out-Null } catch { Write-Host "[WARN] Could not add user using 'net': $($_.Exception.Message)" }
+}
+
+# Final checks
+Write-Host "[INFO] Waiting a few seconds and probing Docker..."
 Start-Sleep -Seconds 5
 
-# Prompt reboot
-Write-Host "`n⚠️  Per completare la configurazione, potrebbe essere necessario RIAVVIARE il computer."
-Write-Host "➡️  Dopo il riavvio, verifica il funzionamento con:"
-Write-Host "    docker --version"
-Write-Host "    docker compose version"
+if (Test-DockerReady) {
+    Write-Host "[OK] Docker Desktop installation appears successful."
+    docker --version
+    docker compose version
+} else {
+    Write-Host "[WARN] Docker may require a logoff or reboot before it is ready."
+}
 
-Write-Host "`n🎉 Docker Desktop è stato installato!"
+Write-Host ""
+Write-Host "[NEXT STEPS]"
+Write-Host "  1) If Docker is not responding yet, restart Windows or sign out/in."
+Write-Host "  2) After restart, verify with:"
+Write-Host "       docker --version"
+Write-Host "       docker compose version"
+Write-Host ""
+Write-Host "[DONE] Docker Desktop install script finished."
