@@ -10,8 +10,8 @@ PURGE_SCRIPT   := scripts/purge.sh
 EXPORT_SCRIPT  := scripts/export.sh
 
 # ------------------------------------------------------------------------------
-# Icon set (emoji on Unix, ASCII on Windows to avoid mojibake).
-# Force ASCII at any time via: make help USE_ICONS=0
+# Icon set (emoji on Unix, safe ASCII on Windows to avoid mojibake *and* '>' redirection).
+# You can force ASCII any time: make help USE_ICONS=0
 # ------------------------------------------------------------------------------
 ifeq ($(OS),Windows_NT)
   USE_ICONS ?= 0
@@ -28,13 +28,13 @@ ifeq ($(USE_ICONS),1)
   ICON_EXPORT  := ☁️
   ICON_HELP    := ℹ️
 else
-  ICON_INSTALL := [*]
-  ICON_START   := [>]
-  ICON_RUN     := [-]
-  ICON_STOP    := [X]
-  ICON_PURGE   := [!]
-  ICON_EXPORT  := [^]
-  ICON_HELP    := [i]
+  ICON_INSTALL := [install]
+  ICON_START   := [start]
+  ICON_RUN     := [run]
+  ICON_STOP    := [stop]
+  ICON_PURGE   := [purge]
+  ICON_EXPORT  := [export]
+  ICON_HELP    := [help]
 endif
 
 # ==============================================================================
@@ -67,7 +67,7 @@ start:
 	@$(SHELL) $(START_SCRIPT)
 
 run:
-	@echo $(ICON_RUN) Running the application setup \(importing agents and tools\)...
+	@echo $(ICON_RUN) Running the application setup (importing agents and tools)...
 	@$(SHELL) $(RUN_SCRIPT)
 
 stop:
@@ -75,20 +75,12 @@ stop:
 	@$(SHELL) $(STOP_SCRIPT)
 
 purge:
-	@echo $(ICON_PURGE) Purging the environment \(stopping and removing all containers and images\)...
+	@echo $(ICON_PURGE) Purging the environment (stopping and removing all containers and images)...
 	@$(SHELL) $(PURGE_SCRIPT)
 
 # Export/import to cloud using scripts/export.sh (reads WO_INSTANCE/WO_API_KEY from .env).
 export:
 	@echo $(ICON_EXPORT) Exporting/importing assets to your cloud environment using .env...
-	@if [ ! -f ".env" ]; then \
-		echo ".env not found in project root. Please fill Option 2 (WO_INSTANCE / WO_API_KEY)."; \
-		exit 1; \
-	fi
-	@if [ ! -x "$(EXPORT_SCRIPT)" ]; then \
-		echo "Making $(EXPORT_SCRIPT) executable..."; \
-		chmod +x "$(EXPORT_SCRIPT)"; \
-	fi
 	@$(SHELL) $(EXPORT_SCRIPT)
 	@echo Done: Cloud export completed.
 
