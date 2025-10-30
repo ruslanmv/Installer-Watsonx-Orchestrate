@@ -1,7 +1,22 @@
-# Use bash as the default shell for all recipes (Git Bash/WSL/macOS/Linux).
-SHELL := /bin/bash
+# Cross-platform Makefile: Linux/macOS/WSL/Git Bash/Windows (cmd.exe)
 
-# Script paths
+# ---------------- Shell selection ----------------
+# On Windows, use cmd so GNU Make doesn't look for sh.exe.
+# We still run .sh scripts via "bash <script>" explicitly.
+ifeq ($(OS),Windows_NT)
+  SHELL := cmd
+  .SHELLFLAGS := /C
+  BASH := bash
+  # Check for bash (Git for Windows provides it). This prints a friendly error if missing.
+  CHECK_BASH := where bash >NUL 2>NUL || (echo Bash not found. Install Git for Windows and ensure "bash" is in PATH. & exit 1)
+else
+  SHELL := /bin/bash
+  .SHELLFLAGS := -c
+  BASH := bash
+  CHECK_BASH := command -v bash >/dev/null 2>&1 || { echo "bash not found in PATH"; exit 1; }
+endif
+
+# ---------------- Script paths ----------------
 INSTALL_SCRIPT := scripts/install.sh
 START_SCRIPT   := scripts/start.sh
 RUN_SCRIPT     := scripts/run.sh
@@ -9,10 +24,7 @@ STOP_SCRIPT    := scripts/stop.sh
 PURGE_SCRIPT   := scripts/purge.sh
 EXPORT_SCRIPT  := scripts/export.sh
 
-# ------------------------------------------------------------------------------
-# Icon set (emoji on Unix, safe ASCII on Windows to avoid mojibake *and* '>' redirection).
-# You can force ASCII any time: make help USE_ICONS=0
-# ------------------------------------------------------------------------------
+# ---------------- Icons (emoji on Unix, ASCII on Windows) ----------------
 ifeq ($(OS),Windows_NT)
   USE_ICONS ?= 0
 else
@@ -59,29 +71,35 @@ help:
 
 install:
 	@echo $(ICON_START) Starting environment installation...
-	@$(SHELL) $(INSTALL_SCRIPT)
+	@$(CHECK_BASH)
+	@$(BASH) "$(INSTALL_SCRIPT)"
 	@echo Done: Installation finished.
 
 start:
 	@echo $(ICON_START) Starting the watsonx Orchestrate server...
-	@$(SHELL) $(START_SCRIPT)
+	@$(CHECK_BASH)
+	@$(BASH) "$(START_SCRIPT)"
 
 run:
 	@echo $(ICON_RUN) Running the application setup (importing agents and tools)...
-	@$(SHELL) $(RUN_SCRIPT)
+	@$(CHECK_BASH)
+	@$(BASH) "$(RUN_SCRIPT)"
 
 stop:
 	@echo $(ICON_STOP) Stopping the server and any related containers...
-	@$(SHELL) $(STOP_SCRIPT)
+	@$(CHECK_BASH)
+	@$(BASH) "$(STOP_SCRIPT)"
 
 purge:
 	@echo $(ICON_PURGE) Purging the environment (stopping and removing all containers and images)...
-	@$(SHELL) $(PURGE_SCRIPT)
+	@$(CHECK_BASH)
+	@$(BASH) "$(PURGE_SCRIPT)"
 
 # Export/import to cloud using scripts/export.sh (reads WO_INSTANCE/WO_API_KEY from .env).
 export:
 	@echo $(ICON_EXPORT) Exporting/importing assets to your cloud environment using .env...
-	@$(SHELL) $(EXPORT_SCRIPT)
+	@$(CHECK_BASH)
+	@$(BASH) "$(EXPORT_SCRIPT)"
 	@echo Done: Cloud export completed.
 
 # Default target
