@@ -1,6 +1,6 @@
 # ⚙️ Watsonx Orchestrate DevKit — Cross-Platform Installer
 
-> One command to set up a full **IBM watsonx Orchestrate** development environment on **Windows**, **WSL (Ubuntu)**, **macOS**, and **Ubuntu**.
+> One command to set up a full **IBM watsonx Orchestrate** dev environment on **Windows**, **WSL (Ubuntu)**, **macOS**, and **Ubuntu**.
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](#)
 [![OS](https://img.shields.io/badge/OS-Windows%20%7C%20WSL%20\(Ubuntu\)%20%7C%20macOS%20%7C%20Ubuntu-brightgreen)](#)
@@ -11,8 +11,8 @@
 ## ✨ Highlights
 
 * 🧠 **Smart OS detection**: Windows, WSL (Ubuntu), macOS, Ubuntu
-* ⚙️ **One command**: `make install` sets up Python 3.11, Docker, a local `venv`, and the **Orchestrate ADK**
-* 🐳 **Windows flow**: choose **Docker Desktop** or **Docker inside WSL** (engine + compose)
+* ⚙️ **Single command**: `make install` sets up Python 3.11, Docker, a local `venv`, and the **Orchestrate ADK**
+* 🐳 **Windows**: choose **Docker Desktop** or **Docker inside WSL** (engine + compose)
 * 🔒 **Project-local** Python virtual environment
 * 📄 **`.env`** credentials support (not committed)
 * 🧭 Clean **Makefile** workflow: `install`, `start`, `run`, `stop`, `purge`, `export`, `help`
@@ -24,7 +24,7 @@
 | Platform          | How installers run                                                                         |
 | ----------------- | ------------------------------------------------------------------------------------------ |
 | **Windows 10/11** | Make via **Git Bash** (recommended) or PowerShell/CMD; platform scripts via **PowerShell** |
-| **WSL (Ubuntu)**  | **Linux installers by default**; optionally call Windows installers from WSL               |
+| **WSL (Ubuntu)**  | **Linux installers by default**; optionally run Windows installers from WSL                |
 | **macOS**         | Bash installers                                                                            |
 | **Ubuntu**        | Bash installers (apt-based)                                                                |
 
@@ -51,7 +51,7 @@ WATSONX_APIKEY=your-watsonx-api-key
 WATSONX_SPACE_ID=your-watsonx.ai-space-id
 ```
 
-> 🔒 **Never commit** your `.env`.
+> 🔒 **Do not commit** your `.env`.
 
 ---
 
@@ -71,7 +71,7 @@ make install
 ```
 
 > **WSL behavior:** inside WSL the installer uses **Linux** scripts by default.
-> To force **Windows-side installers from WSL** (e.g., prefer Docker Desktop on Windows), set `PREFER_WINDOWS_ON_WSL=1` using the syntax for **your shell**:
+> To force **Windows-side installers from WSL** (e.g., prefer Docker Desktop on Windows), set `PREFER_WINDOWS_ON_WSL=1` using your shell’s syntax:
 
 * **Git Bash / WSL / macOS / Ubuntu**
 
@@ -93,12 +93,12 @@ make install
 
 3. **Activate venv**
 
-* macOS / Ubuntu / WSL:
+* macOS / Ubuntu / WSL
 
   ```bash
   source venv/bin/activate
   ```
-* Windows (PowerShell):
+* Windows (PowerShell)
 
   ```powershell
   .\venv\Scripts\Activate.ps1
@@ -135,29 +135,12 @@ make purge    # remove containers/images (destructive)
 
 ---
 
-## 🧪 Minimal Prerequisites
-
-* **All**: Git, Make, internet access
-* **Windows**: Git for Windows (for **Git Bash**), PowerShell (7 recommended)
-* **WSL (optional on Windows)**: `wsl --install -d Ubuntu`
-
-> The Makefile auto-prefers **Git Bash** on Windows and executes platform scripts with the appropriate shell.
-
----
-
 ## 🛟 Troubleshooting
 
 * **Inline env var fails on Windows CMD**
-  Use the correct syntax for your shell (see **Quick Start → step 2**):
-
-  * PowerShell: `$env:PREFER_WINDOWS_ON_WSL='1'; make install`
-  * CMD: `set PREFER_WINDOWS_ON_WSL=1` then `make install`
-  * Git Bash/WSL/macOS/Ubuntu: `PREFER_WINDOWS_ON_WSL=1 make install`
-
+  Use the correct syntax (see **Quick Start → Install**).
 * **Docker installed but “daemon not reachable”**
-
-  * Start Docker Desktop; or in WSL: `sudo service docker start` (or enable systemd and reopen terminal).
-
+  Start Docker Desktop; or in WSL: `sudo service docker start` (or enable systemd and reopen terminal).
 * **PowerShell execution policy blocks scripts (Windows)**
   Run PowerShell as admin:
 
