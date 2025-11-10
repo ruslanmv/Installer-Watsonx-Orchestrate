@@ -14,7 +14,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot    = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $envFile     = Join-Path $RepoRoot '.env'
 $venvDir     = Join-Path $RepoRoot 'venv'
-$adkVersions = @('1.5.0','1.5.1','1.6.0','1.6.1','1.6.2','1.7.0')
+$adkVersions = @('1.5.0','1.5.1','1.6.0','1.6.1','1.6.2','1.7.0', '1.8.0', '1.14.1')
 
 # --- Helpers ---
 function CommandExists {
