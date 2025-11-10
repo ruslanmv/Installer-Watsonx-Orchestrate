@@ -149,47 +149,47 @@ ifeq ($(OS),Windows_NT)
 
 # Windows: run *only* the PowerShell installers, never bash (prevents WSL hijack)
 install:
-	@echo $(ICON_INSTALL) Starting environment installation for Windows...
+	@echo "$(ICON_INSTALL) Starting environment installation for Windows..."
 	@powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/windows/install_python_win.ps1" "$(CURDIR)"
 	@powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/windows/install_docker.ps1"      "$(CURDIR)"
 	@powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/windows/install_watsonx_win.ps1" "$(CURDIR)"
-	@echo Done: Installation finished (Windows).
+	@echo "Done: Installation finished (Windows)."
 
 else
 
 # macOS/Linux: keep using the cross-platform dispatcher script
 install:
-	@echo $(ICON_INSTALL) Starting environment installation...
+	@echo "$(ICON_INSTALL) Starting environment installation..."
 	@$(CHECK_BASH)
 	@"$(BASH)" "$(INSTALL_SCRIPT)"
-	@echo Done: Installation finished.
+	@echo "Done: Installation finished."
 
 endif
 
 start:
-	@echo $(ICON_START) Starting the watsonx Orchestrate server...
+	@echo "$(ICON_START) Starting the watsonx Orchestrate server..."
 	@$(CHECK_BASH)
 	@"$(BASH)" "$(START_SCRIPT)"
 
 run:
-	@echo $(ICON_RUN) Running the application setup (importing agents and tools)...
+	@echo "$(ICON_RUN) Running the application setup (importing agents and tools)..."
 	@$(CHECK_BASH)
 	@"$(BASH)" "$(RUN_SCRIPT)"
 
 stop:
-	@echo $(ICON_STOP) Stopping the server and any related containers...
+	@echo "$(ICON_STOP) Stopping the server and any related containers..."
 	@$(CHECK_BASH)
 	@"$(BASH)" "$(STOP_SCRIPT)"
 
 purge:
-	@echo $(ICON_PURGE) Purging the environment (stopping and removing all containers and images)...
+	@echo "$(ICON_PURGE) Purging the environment (stopping and removing all containers and images)..."
 	@$(CHECK_BASH)
 	@"$(BASH)" "$(PURGE_SCRIPT)"
 
 export:
-	@echo $(ICON_EXPORT) Exporting/importing assets to your cloud environment using .env...
+	@echo "$(ICON_EXPORT) Exporting/importing assets to your cloud environment using .env..."
 	@$(CHECK_BASH)
 	@"$(BASH)" "$(EXPORT_SCRIPT)"
-	@echo Done: Cloud export completed.
+	@echo "Done: Cloud export completed."
 
 .DEFAULT_GOAL := help
